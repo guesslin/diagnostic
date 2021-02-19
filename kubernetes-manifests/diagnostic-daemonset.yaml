@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: diagnostic
+spec:
+  selector:
+    matchLabels:
+      app: diagnostic
+  template:
+    metadata:
+      labels:
+        app: diagnostic
+      # Set as critical pod: https://github.com/kairen/simple-device-plugin/blob/master/artifacts/simple-device-plugin.yml#L13
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+    spec:
+      hostNetwork: true
+      tolerations:
+      # Set as critical pod: https://github.com/kairen/simple-device-plugin/blob/master/artifacts/simple-device-plugin.yml#L18
+      - key: CriticalAddonsOnly
+        operator: Exists
+      # https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#how-daemon-pods-are-scheduled
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      containers:
+      - name: bcc
+        image: guesslin/bcc-alpine:20210209-1358
+        volumeMounts:
+        - name: nsenter-proc
+          mountPath: /mnt
+        - name: lib-modules
+          mountPath: /lib/modules
+        - name: host-sys
+          mountPath: /sys
+        - name: host-usr-src
+          mountPath: /usr/src
+        securityContext:
+          privileged: true
+        command: ['bash', '-c']
+        args:
+        - |
+          mount --bind /mnt /proc;
+          while true; do
+            sleep 10;
+          done;
+      - name: dropwatch
+        image: guesslin/dropwatch:20210208-1113
+        volumeMounts:
+        - name: nsenter-proc
+          mountPath: /mnt
+        securityContext:
+          privileged: true
+        command: ['bash', '-c']
+        args:
+        - |
+          mount --bind /mnt /proc;
+          while true; do
+            sleep 10;
+          done;
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: nsenter-proc
+        hostPath:
+          path: /proc
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: host-sys
+        hostPath:
+          path: /sys
+      - name: host-usr-src
+        hostPath:
+          path: /usr/src
